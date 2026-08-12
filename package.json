@@ -1,0 +1,21 @@
+{
+  "name": "antiq",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ANTIQ — artist funding platform with Zero nebula feel",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "pnpm --filter @antiq/web dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2",
+    "prettier": "^3.4.2"
+  }
+}

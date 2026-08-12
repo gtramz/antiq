@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --band-fill: rgba(8, 14, 24, 0.78);
+  --band-fill-strong: rgba(12, 22, 40, 0.9);
+  --band-edge: rgba(106, 143, 191, 0.08);
+  --band-edge-strong: rgba(106, 143, 191, 0.22);
+  --voice-tracking: 0.12em;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background-color: #000000;
+  color: #f5f7fa;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#__next,
+body > div:first-child {
+  height: 100%;
+}
+
+@keyframes antiq-nebula-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(var(--dx), var(--dy)) scale(1.18);
+  }
+}
+
+@keyframes antiq-wave {
+  from {
+    transform: scaleY(0.45);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@layer utilities {
+  .voice {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-weight: 500;
+    letter-spacing: var(--voice-tracking);
+    text-transform: uppercase;
+  }
+
+  /* Soft glass — cool, low-sat edge. */
+  .glass-band {
+    background: rgba(8, 14, 24, 0.78);
+    border: 1px solid rgba(106, 143, 191, 0.08);
+  }
+
+  .glass-band-strong {
+    background: rgba(12, 22, 40, 0.9);
+    border: 1px solid rgba(106, 143, 191, 0.22);
+  }
+
+  .avatar {
+    border-radius: 9999px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  /* Optional: one-off blur for chrome only (tabs / filter). */
+  .glass-blur {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(8, 14, 24, 0.72);
+  }
+
+  .text-veil {
+    text-shadow: 0 1px 5px rgba(0, 0, 0, 0.6);
+  }
+}
