@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SpotifyArtistPayload } from "@/modules/artists/spotify-types";
 
 type OEmbed = {
@@ -10,6 +10,8 @@ type OEmbed = {
 
 type Props = {
   spotifyUrl?: string;
+  /** profile = Connect identity only; listen = top tracks + preview (Discography). */
+  variant?: "profile" | "listen";
   /** When true, always show the glass placeholder instead of fetching. */
   forcePlaceholder?: boolean;
 };
@@ -53,7 +55,7 @@ function SpotifyPlaceholder({ reason }: { reason: "empty" | "invalid" }) {
         </p>
         <p className="mt-0.5 text-[11px] text-muted">
           {reason === "empty"
-            ? "Paste an artist URL or URI to preview the embed."
+            ? "Paste an artist URL or URI in Connect."
             : "Use open.spotify.com/artist/… or spotify:artist:…"}
         </p>
       </div>
@@ -61,29 +63,35 @@ function SpotifyPlaceholder({ reason }: { reason: "empty" | "invalid" }) {
   );
 }
 
-/**
- * Spotify artist — Web API when configured, else oEmbed + official embed.
- * Invalid / empty URLs render a stylized placeholder (never a hard error).
- */
-export function SpotifyPreview({ spotifyUrl, forcePlaceholder }: Props) {
+type LoadState = {
+  artist: SpotifyArtistPayload | null;
+  oembed: OEmbed | null;
+  mode: "loading" | "api" | "embed" | "invalid";
+  errorCode: string | null;
+};
+
+function useSpotifyArtist(spotifyUrl: string | undefined, enabled: boolean) {
   const trimmed = spotifyUrl?.trim() ?? "";
   const artistId = trimmed ? parseSpotifyArtistId(trimmed) : null;
-  const [artist, setArtist] = useState<SpotifyArtistPayload | null>(null);
-  const [oembed, setOembed] = useState<OEmbed | null>(null);
-  const [activeTrack, setActiveTrack] = useState<string | null>(null);
-  const [mode, setMode] = useState<"loading" | "api" | "embed" | "invalid">(
-    "loading",
-  );
+  const [state, setState] = useState<LoadState>({
+    artist: null,
+    oembed: null,
+    mode: "loading",
+    errorCode: null,
+  });
 
   useEffect(() => {
-    setArtist(null);
-    setOembed(null);
-    setActiveTrack(null);
-    setMode("loading");
-  }, [trimmed]);
+    if (!enabled) return;
+    setState({
+      artist: null,
+      oembed: null,
+      mode: "loading",
+      errorCode: null,
+    });
+  }, [trimmed, enabled]);
 
   useEffect(() => {
-    if (!artistId || forcePlaceholder) return;
+    if (!enabled || !artistId) return;
     const url = normalizeSpotifyArtistUrl(trimmed);
     if (!url) return;
     let cancelled = false;
@@ -95,9 +103,21 @@ export function SpotifyPreview({ spotifyUrl, forcePlaceholder }: Props) {
         );
         if (!cancelled && apiRes.ok) {
           const data = (await apiRes.json()) as SpotifyArtistPayload;
-          setArtist(data);
-          setMode("api");
+          setState({
+            artist: data,
+            oembed: null,
+            mode: "api",
+            errorCode: null,
+          });
           return;
+        }
+        if (!cancelled && apiRes.status === 503) {
+          const body = (await apiRes.json().catch(() => null)) as {
+            code?: string;
+          } | null;
+          if (body?.code === "NO_CREDENTIALS") {
+            // Fall through to oEmbed
+          }
         }
       } catch {
         /* fall through */
@@ -108,22 +128,102 @@ export function SpotifyPreview({ spotifyUrl, forcePlaceholder }: Props) {
           `/api/spotify/oembed?url=${encodeURIComponent(url)}`,
         );
         if (!cancelled && oe.ok) {
-          setOembed((await oe.json()) as OEmbed);
-          setMode("embed");
+          setState({
+            artist: null,
+            oembed: (await oe.json()) as OEmbed,
+            mode: "embed",
+            errorCode: null,
+          });
           return;
         }
       } catch {
         /* ignore */
       }
 
-      /* Bad / unknown artist — never mount a 404 iframe. */
-      if (!cancelled) setMode("invalid");
+      if (!cancelled) {
+        setState({
+          artist: null,
+          oembed: null,
+          mode: "invalid",
+          errorCode: "load_failed",
+        });
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [trimmed, artistId, forcePlaceholder]);
+  }, [trimmed, artistId, enabled]);
+
+  return { trimmed, artistId, ...state };
+}
+
+/**
+ * Spotify artist card.
+ * - profile: identity + Open on Spotify (Connect)
+ * - listen: top tracks + audio/embed (Discography)
+ */
+export function SpotifyPreview({
+  spotifyUrl,
+  variant = "profile",
+  forcePlaceholder,
+}: Props) {
+  const enabled = !forcePlaceholder;
+  const { trimmed, artistId, artist, oembed, mode } = useSpotifyArtist(
+    spotifyUrl,
+    enabled,
+  );
+  const [activeTrack, setActiveTrack] = useState<string | null>(null);
+  const [playingPreview, setPlayingPreview] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    setActiveTrack(null);
+    setPlayingPreview(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+  }, [trimmed, variant]);
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  function stopPreviewAudio() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setPlayingPreview(false);
+  }
+
+  function toggleTrack(track: SpotifyArtistPayload["topTracks"][number]) {
+    const selecting = activeTrack !== track.id;
+    setActiveTrack(selecting ? track.id : null);
+
+    if (!selecting) {
+      stopPreviewAudio();
+      return;
+    }
+
+    stopPreviewAudio();
+
+    if (track.previewUrl) {
+      const audio = new Audio(track.previewUrl);
+      audioRef.current = audio;
+      audio.addEventListener("ended", () => setPlayingPreview(false));
+      void audio.play().then(
+        () => setPlayingPreview(true),
+        () => setPlayingPreview(false),
+      );
+    }
+  }
 
   if (forcePlaceholder || !trimmed) {
     return <SpotifyPlaceholder reason="empty" />;
@@ -143,7 +243,7 @@ export function SpotifyPreview({ spotifyUrl, forcePlaceholder }: Props) {
           <p className="voice text-[9px] tracking-[0.12em] text-[#1DB954]/80">
             Spotify
           </p>
-          <p className="mt-0.5 text-[13px] text-muted">Loading preview…</p>
+          <p className="mt-0.5 text-[13px] text-muted">Loading…</p>
         </div>
       </div>
     );
@@ -151,97 +251,177 @@ export function SpotifyPreview({ spotifyUrl, forcePlaceholder }: Props) {
 
   const title = artist?.name ?? oembed?.title ?? "Artist";
   const image = artist?.imageUrl ?? oembed?.thumbnail_url;
+  const profileUrl =
+    artist?.externalUrl ?? normalizeSpotifyArtistUrl(trimmed) ?? "#";
+
+  const header = (
+    <div className="flex items-center gap-3 px-3 py-3">
+      {image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={image}
+          alt=""
+          width={variant === "profile" ? 56 : 40}
+          height={variant === "profile" ? 56 : 40}
+          className={`shrink-0 rounded-full object-cover ${
+            variant === "profile" ? "h-14 w-14" : "h-10 w-10"
+          }`}
+        />
+      ) : (
+        <span
+          className={`flex shrink-0 items-center justify-center rounded-full bg-[#1DB954]/20 text-[#1DB954] ${
+            variant === "profile" ? "h-14 w-14 text-[14px]" : "h-10 w-10 text-[11px]"
+          }`}
+        >
+          ♫
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="voice text-[9px] tracking-[0.12em] text-[#1DB954]">
+          Spotify
+        </p>
+        <p
+          className={`truncate font-medium text-ink ${
+            variant === "profile" ? "text-[16px]" : "text-[13px]"
+          }`}
+        >
+          {title}
+        </p>
+        {artist ? (
+          <p className="truncate text-[11px] text-muted">
+            {formatFollowers(artist.followers)} followers
+            {artist.genres[0] ? ` · ${artist.genres[0]}` : ""}
+          </p>
+        ) : null}
+      </div>
+      <a
+        href={profileUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="voice shrink-0 rounded-full border border-[#1DB954]/35 bg-[#1DB954]/15 px-3 py-1.5 text-[10px] text-[#1DB954] transition hover:bg-[#1DB954]/25"
+      >
+        Open on Spotify
+      </a>
+    </div>
+  );
+
+  if (variant === "profile") {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20 backdrop-blur-md">
+        {header}
+      </div>
+    );
+  }
+
+  // listen variant
+  const active = artist?.topTracks.find((t) => t.id === activeTrack);
+  const useMp3 = Boolean(active?.previewUrl);
   const embedSrc = activeTrack
     ? `https://open.spotify.com/embed/track/${activeTrack}?utm_source=generator&theme=0`
     : `https://open.spotify.com/embed/artist/${artistId}?utm_source=generator&theme=0`;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20 backdrop-blur-md">
-      <div className="flex items-center gap-3 px-3 py-2.5">
-        {image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={image}
-            alt=""
-            width={40}
-            height={40}
-            className="h-10 w-10 shrink-0 rounded-full object-cover"
-          />
-        ) : (
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1DB954]/20 text-[11px] text-[#1DB954]">
-            ♫
-          </span>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="voice text-[9px] tracking-[0.12em] text-[#1DB954]">
-            Spotify
-          </p>
-          <p className="truncate text-[13px] font-medium text-ink">{title}</p>
-          {artist ? (
-            <p className="truncate text-[11px] text-muted">
-              {formatFollowers(artist.followers)} followers
-              {artist.genres[0] ? ` · ${artist.genres[0]}` : ""}
-            </p>
-          ) : null}
-        </div>
-        <a
-          href={artist?.externalUrl ?? normalizeSpotifyArtistUrl(trimmed)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="voice shrink-0 text-[10px] text-muted"
-        >
-          Open
-        </a>
-      </div>
+      {header}
 
       {mode === "api" && artist && artist.topTracks.length > 0 ? (
         <ul className="border-t border-white/10 px-2 py-2">
-          {artist.topTracks.map((track, i) => (
-            <li key={track.id}>
-              <button
-                type="button"
-                onClick={() =>
-                  setActiveTrack((id) =>
-                    id === track.id ? null : track.id,
-                  )
-                }
-                className={`flex w-full items-center gap-2 rounded-full px-2 py-1.5 text-left transition ${
-                  activeTrack === track.id
-                    ? "bg-[#1DB954]/15"
-                    : "hover:bg-white/[0.04]"
-                }`}
-              >
-                <span className="voice w-4 shrink-0 text-[10px] text-tertiary">
-                  {i + 1}
-                </span>
-                {track.albumImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={track.albumImage}
-                    alt=""
-                    width={28}
-                    height={28}
-                    className="h-7 w-7 shrink-0 rounded-sm object-cover"
-                  />
-                ) : null}
-                <span className="min-w-0 flex-1 truncate text-[12px] text-ink">
-                  {track.name}
-                </span>
-              </button>
-            </li>
-          ))}
+          <li className="px-2 pb-1.5">
+            <p className="voice text-[9px] tracking-[0.08em] text-tertiary uppercase">
+              Listen · top tracks
+            </p>
+          </li>
+          {artist.topTracks.map((track, i) => {
+            const selected = activeTrack === track.id;
+            return (
+              <li key={track.id}>
+                <button
+                  type="button"
+                  onClick={() => toggleTrack(track)}
+                  className={`flex w-full items-center gap-2 rounded-full px-2 py-1.5 text-left transition ${
+                    selected
+                      ? "bg-[#1DB954]/15"
+                      : "hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <span className="voice w-4 shrink-0 text-[10px] text-tertiary">
+                    {i + 1}
+                  </span>
+                  {track.albumImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={track.albumImage}
+                      alt=""
+                      width={28}
+                      height={28}
+                      className="h-7 w-7 shrink-0 rounded-sm object-cover"
+                    />
+                  ) : null}
+                  <span className="min-w-0 flex-1 truncate text-[12px] text-ink">
+                    {track.name}
+                  </span>
+                  <span className="voice shrink-0 text-[9px] text-tertiary">
+                    {selected && track.previewUrl && playingPreview
+                      ? "Playing"
+                      : track.previewUrl
+                        ? "Preview"
+                        : "Embed"}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
 
-      <iframe
-        title={title}
-        src={embedSrc}
-        width="100%"
-        height={152}
-        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-        loading="lazy"
-        className="block w-full border-0 border-t border-white/10"
-      />
+      {active && useMp3 ? (
+        <div className="flex items-center justify-between gap-3 border-t border-white/10 px-3 py-2.5">
+          <p className="min-w-0 truncate text-[12px] text-muted">
+            30s preview · {active.name}
+          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (!audioRef.current || !active.previewUrl) {
+                  toggleTrack(active);
+                  return;
+                }
+                if (playingPreview) {
+                  audioRef.current.pause();
+                  setPlayingPreview(false);
+                } else {
+                  void audioRef.current.play().then(
+                    () => setPlayingPreview(true),
+                    () => setPlayingPreview(false),
+                  );
+                }
+              }}
+              className="voice rounded-full bg-[#1DB954] px-3 py-1.5 text-[10px] font-semibold text-black"
+            >
+              {playingPreview ? "Pause" : "Play"}
+            </button>
+            <a
+              href={active.externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="voice text-[10px] text-[#1DB954]"
+            >
+              Full track
+            </a>
+          </div>
+        </div>
+      ) : (
+        <iframe
+          title={title}
+          src={embedSrc}
+          width="100%"
+          height={152}
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          loading="lazy"
+          className="block w-full border-0 border-t border-white/10"
+        />
+      )}
     </div>
   );
 }

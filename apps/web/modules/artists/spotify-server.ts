@@ -48,6 +48,11 @@ export async function getSpotifyAccessToken(): Promise<string | null> {
 }
 
 export function artistIdFromSpotifyUrl(url: string): string | null {
-  const m = url.match(/open\.spotify\.com\/artist\/([a-zA-Z0-9]+)/);
-  return m?.[1] ?? null;
+  const value = url.trim();
+  const uri = value.match(/^spotify:artist:([a-zA-Z0-9]+)$/i);
+  if (uri?.[1]) return uri[1];
+  const web = value.match(
+    /(?:open\.)?spotify\.com\/artist\/([a-zA-Z0-9]+)/i,
+  );
+  return web?.[1] ?? null;
 }

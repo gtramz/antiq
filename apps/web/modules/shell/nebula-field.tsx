@@ -83,7 +83,7 @@ export function NebulaField({
   active = true,
   speed = 1,
   refAspect = null,
-  maxDpr = 0.75,
+  maxDpr = 1,
   fps = 30,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -215,6 +215,7 @@ export function NebulaField({
           height: "100%",
           transform: "translateZ(0)",
           willChange: "transform",
+          imageRendering: "auto",
         }}
         aria-hidden
       />

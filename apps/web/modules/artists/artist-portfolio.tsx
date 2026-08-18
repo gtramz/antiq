@@ -1,16 +1,19 @@
 "use client";
 
-import type { Project } from "@antiq/types";
+import type { Artist, CategoryId, Pledge, Project } from "@antiq/types";
 import { useMemo, useState } from "react";
-import { ProjectCard } from "@/modules/discover/project-card";
-import { ReleaseCard, type PastRelease } from "./release-card";
+import { AddProjectSheet } from "./add-project-sheet";
+import { ArtistAnalyticsPanel } from "./artist-analytics-panel";
+import { FundingListCard } from "./funding-list-card";
+import { SpotifyDiscography } from "./spotify-discography";
 
-type PortfolioTab = "funding" | "discography";
+type PortfolioTab = "funding" | "discography" | "analytics";
 type FormatFilter = "all" | "singles" | "eps" | "albums";
 
 const TABS: { id: PortfolioTab; label: string }[] = [
-  { id: "funding", label: "Active funding" },
+  { id: "funding", label: "Active Funding" },
   { id: "discography", label: "Discography" },
+  { id: "analytics", label: "Analytics" },
 ];
 
 const FORMAT_PILLS: { id: FormatFilter; label: string }[] = [
@@ -30,27 +33,48 @@ function matchesFormat(format: string, filter: FormatFilter): boolean {
 }
 
 type Props = {
+  artist: Artist;
   artistId: string;
   artistName: string;
+  artistRole: CategoryId;
+  artistPalette: Project["palette"];
   projects: Project[];
-  releases: PastRelease[];
+  pledges: Pledge[];
+  artistSupports: number;
+  projectSupports: number;
   isEditing: boolean;
+  /** Owner can always open Add project (not only while profile is in Edit). */
+  isOwner?: boolean;
   onInvest?: (projectId: string) => void;
+  investCtaLabel?: string;
 };
 
 /**
- * Artist portfolio — Active Funding / Discography tabs + format swimlane.
+ * Portfolio under profile header — tabs, format filters, full-width funding cards.
  */
 export function ArtistPortfolio({
+  artist,
   artistId,
   artistName,
+  artistRole,
+  artistPalette,
   projects,
-  releases,
+  pledges,
+  artistSupports,
+  projectSupports,
   isEditing,
+  isOwner = false,
   onInvest,
+  investCtaLabel = "Invest",
 }: Props) {
   const [tab, setTab] = useState<PortfolioTab>("funding");
   const [format, setFormat] = useState<FormatFilter>("all");
+  const [addOpen, setAddOpen] = useState(false);
+
+  const defaultGenre = useMemo(() => {
+    const listed = projects.find((p) => p.listedForFunding);
+    return listed?.subcategory ?? projects[0]?.subcategory ?? "Electronic";
+  }, [projects]);
 
   const activeFunding = useMemo(
     () =>
@@ -63,16 +87,12 @@ export function ArtistPortfolio({
     [projects, format],
   );
 
-  const filteredReleases = useMemo(
-    () => releases.filter((r) => matchesFormat(r.format, format)),
-    [releases, format],
-  );
+  const showFormatPills = tab === "funding" || tab === "discography";
 
   return (
     <section className="mt-8 lg:mt-10">
-      {/* Tabs */}
       <div
-        className="flex gap-6 border-b border-white/10"
+        className="flex gap-6 overflow-x-auto border-b border-white/10 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="tablist"
         aria-label="Portfolio"
       >
@@ -88,8 +108,8 @@ export function ArtistPortfolio({
                 setTab(t.id);
                 setFormat("all");
               }}
-              className={`voice relative pb-3 text-[11px] transition ${
-                active ? "text-accent" : "text-muted hover:text-ink"
+              className={`voice relative shrink-0 pb-3 text-[11px] tracking-[0.12em] uppercase transition ${
+                active ? "text-ink" : "text-muted hover:text-ink"
               }`}
             >
               {t.label}
@@ -101,87 +121,109 @@ export function ArtistPortfolio({
         })}
       </div>
 
-      {/* Format filters */}
-      <div
-        className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] lg:-mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden"
-        role="listbox"
-        aria-label="Format"
-      >
-        {FORMAT_PILLS.map((pill) => {
-          const active = format === pill.id;
-          return (
-            <button
-              key={pill.id}
-              type="button"
-              role="option"
-              aria-selected={active}
-              onClick={() => setFormat(pill.id)}
-              className={`voice h-8 shrink-0 rounded-full border px-3.5 text-[10px] transition ${
-                active
-                  ? "border-white/20 bg-white/20 text-ink backdrop-blur-md"
-                  : "border-white/10 bg-transparent text-muted hover:border-white/20 hover:text-ink"
-              }`}
-            >
-              {pill.label}
-            </button>
-          );
-        })}
-      </div>
+      {showFormatPills ? (
+        <div
+          className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] lg:-mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden"
+          role="listbox"
+          aria-label="Format"
+        >
+          {FORMAT_PILLS.map((pill) => {
+            const active = format === pill.id;
+            return (
+              <button
+                key={pill.id}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => setFormat(pill.id)}
+                className={`voice h-8 shrink-0 rounded-full border px-3.5 text-[10px] tracking-[0.08em] uppercase transition ${
+                  active
+                    ? "border-white/25 bg-white/15 text-ink backdrop-blur-md"
+                    : "border-white/10 bg-transparent text-muted hover:border-white/20 hover:text-ink"
+                }`}
+              >
+                {pill.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
 
-      {/* Panels */}
-      <div className="mt-5" role="tabpanel">
+      <div className="mt-6" role="tabpanel">
         {tab === "funding" ? (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-5">
-            {isEditing ? (
-              <AddPlaceholder label="Add new project" />
+          <div className="flex flex-col gap-5">
+            {isOwner ? (
+              <AddPlaceholder
+                label="Add new project"
+                onClick={() => setAddOpen(true)}
+              />
             ) : null}
             {activeFunding.map((project) => (
-              <ProjectCard
+              <FundingListCard
                 key={project.id}
-                variant="compact"
                 project={project}
                 artistId={artistId}
                 artistName={artistName}
-                showFundingBadge
-                ctaLabel="Invest"
-                onBack={
-                  !isEditing && onInvest
+                ctaLabel={investCtaLabel}
+                onInvest={
+                  !isEditing && !isOwner && onInvest
                     ? () => onInvest(project.id)
                     : undefined
                 }
               />
             ))}
-            {!isEditing && activeFunding.length === 0 ? (
-              <p className="col-span-full py-8 text-center text-[13px] text-muted">
+            {!isOwner && activeFunding.length === 0 ? (
+              <p className="py-10 text-center text-[13px] text-muted">
                 No active funding in this format
               </p>
             ) : null}
           </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-5 xl:grid-cols-4">
-            {isEditing ? (
-              <AddPlaceholder label="Add past release" />
-            ) : null}
-            {filteredReleases.map((release) => (
-              <ReleaseCard key={release.id} release={release} />
-            ))}
-            {!isEditing && filteredReleases.length === 0 ? (
-              <p className="col-span-full py-8 text-center text-[13px] text-muted">
-                No releases in this format
-              </p>
-            ) : null}
-          </div>
-        )}
+        ) : null}
+
+        {tab === "discography" ? (
+          <SpotifyDiscography
+            artistId={artistId}
+            spotifyUrl={artist.socials.spotify}
+            palette={artistPalette}
+            format={format}
+          />
+        ) : null}
+
+        {tab === "analytics" ? (
+          <ArtistAnalyticsPanel
+            artist={artist}
+            projects={projects}
+            pledges={pledges}
+            artistSupports={artistSupports}
+            projectSupports={projectSupports}
+          />
+        ) : null}
       </div>
+
+      <AddProjectSheet
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        artistId={artistId}
+        artistRole={artistRole}
+        defaultGenre={defaultGenre}
+        palette={artistPalette}
+      />
     </section>
   );
 }
 
-function AddPlaceholder({ label }: { label: string }) {
+function AddPlaceholder({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
-      className="flex min-h-[220px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/20 bg-white/5 p-4 text-center backdrop-blur-md transition hover:border-accent/40 hover:bg-white/10"
+      onClick={onClick}
+      className="flex min-h-[160px] w-full flex-col items-center justify-center gap-2 rounded-surface border border-dashed border-white/20 bg-white/5 p-6 text-center backdrop-blur-md transition hover:border-accent/40 hover:bg-white/10"
     >
       <span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 text-[20px] leading-none text-accent">
         +

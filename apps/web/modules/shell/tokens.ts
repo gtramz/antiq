@@ -23,7 +23,7 @@ export const VOID_PALETTE = {
 export const VOID_FIELD = {
   speed: 1.2,
   washRefAspect: 1.4,
-  maxDpr: 0.75,
+  maxDpr: 1,
   fps: 30,
 } as const;
 

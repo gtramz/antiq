@@ -7,16 +7,22 @@
     "build": "next build",
     "start": "next start -p 3020",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "node --env-file=.env.local scripts/db-migrate.mjs",
+    "db:ping": "node --env-file=.env.local scripts/db-ping.mjs"
   },
   "dependencies": {
     "@antiq/nebula": "workspace:*",
     "@antiq/types": "workspace:*",
+    "@neondatabase/serverless": "^1.1.0",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.8",
     "next": "^14.2.21",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
     "@types/node": "^22.10.2",
     "@types/react": "18.3.31",
     "@types/react-dom": "^18.3.5",

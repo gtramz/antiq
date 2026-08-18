@@ -2,7 +2,8 @@
 
 import type { Palette } from "@antiq/types";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { isLocalMediaUrl } from "@/lib/read-local-image";
 import { ArtPeek } from "./art-peek";
 import { seedUnit } from "./initials";
 
@@ -30,6 +31,7 @@ export function organicRadius(seed: string): string {
 
 /**
  * Artist-chosen cover — ArtPeek if missing URL or Image fails.
+ * Local uploads (data:/blob:) use <img>; remote https uses next/image.
  */
 export function CoverMedia({
   seed,
@@ -40,7 +42,11 @@ export function CoverMedia({
   square,
 }: Props) {
   const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [coverUrl]);
   const showImage = Boolean(coverUrl) && !failed;
+  const local = isLocalMediaUrl(coverUrl);
 
   return (
     <div
@@ -48,14 +54,24 @@ export function CoverMedia({
       style={square ? undefined : { borderRadius: organicRadius(seed) }}
     >
       {showImage ? (
-        <Image
-          src={coverUrl!}
-          alt={alt}
-          fill
-          sizes="(max-width: 430px) 100vw, 430px"
-          className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
-          onError={() => setFailed(true)}
-        />
+        local ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={coverUrl!}
+            alt={alt}
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+            onError={() => setFailed(true)}
+          />
+        ) : (
+          <Image
+            src={coverUrl!}
+            alt={alt}
+            fill
+            sizes="(max-width: 430px) 100vw, 430px"
+            className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+            onError={() => setFailed(true)}
+          />
+        )
       ) : (
         <ArtPeek
           palette={palette}

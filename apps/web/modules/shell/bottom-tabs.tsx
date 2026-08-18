@@ -3,17 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 const TABS: {
   href: string;
   label: string;
   match: (p: string) => boolean;
   icon: ReactNode;
+  authOnly?: boolean;
 }[] = [
   {
-    href: "/",
+    href: "/explore",
     label: "Explore",
-    match: (p) => p === "/",
+    match: (p) => p === "/explore" || p === "/",
     icon: (
       <svg
         viewBox="0 0 24 24"
@@ -61,11 +63,30 @@ const TABS: {
         className="h-6 w-6"
         aria-hidden
       >
-        <path
-          d="M4 7.5h16v9H4z"
-          strokeLinejoin="round"
-        />
+        <path d="M4 7.5h16v9H4z" strokeLinejoin="round" />
         <path d="M4 10h16M8 7.5v9" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/profile",
+    label: "Profile",
+    match: (p) => p.startsWith("/profile"),
+    authOnly: true,
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        className="h-6 w-6"
+        aria-hidden
+      >
+        <circle cx="12" cy="8" r="3.25" />
+        <path
+          d="M5.5 19.5c1.2-3.2 3.4-4.8 6.5-4.8s5.3 1.6 6.5 4.8"
+          strokeLinecap="round"
+        />
       </svg>
     ),
   },
@@ -73,11 +94,14 @@ const TABS: {
 
 export function BottomTabs() {
   const pathname = usePathname();
+  const { isAuthenticated } = useAuth();
+
+  const tabs = TABS.filter((tab) => !tab.authOnly || isAuthenticated);
 
   return (
     <nav className="pointer-events-auto absolute inset-x-0 bottom-0 z-40 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-2 lg:hidden">
       <div className="glass-band glass-blur flex h-14 items-stretch overflow-hidden rounded-full">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const active = tab.match(pathname);
           return (
             <Link

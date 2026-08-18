@@ -1,7 +1,9 @@
 "use client";
 
 import { fundingPercent } from "@antiq/types";
+import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 import { useStore } from "@/modules/data/store";
 import { ArtistResultRow } from "./artist-result-row";
 import { DiscoverSearch } from "./discover-search";
@@ -16,11 +18,12 @@ import { SearchMiniCard } from "./search-mini-card";
  * Search — glass chrome, category swimlane, default Explore Projects grid.
  */
 export function DiscoverSearchPage() {
-  const { projects, artists, getArtist } = useStore();
+  const { projects, artists, getArtist, projectSupportCount } = useStore();
   const [scope, setScope] = useState<SearchScope>("projects");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [subcategory, setSubcategory] = useState<string | "all">("all");
+  const { user } = useAuth();
 
   const { artists: matchedArtists, projects: filtered } = useMemo(
     () =>
@@ -38,11 +41,14 @@ export function DiscoverSearchPage() {
       (p) => p.listedForFunding && p.status === "open",
     );
     return [...listed].sort((a, b) => {
+      const supportDiff =
+        projectSupportCount(b.id) - projectSupportCount(a.id);
+      if (supportDiff !== 0) return supportDiff;
       const pctDiff = fundingPercent(b) - fundingPercent(a);
       if (pctDiff !== 0) return pctDiff;
       return b.raised - a.raised;
     });
-  }, [projects]);
+  }, [projects, projectSupportCount]);
 
   function handleScope(next: SearchScope) {
     setScope(next);
@@ -68,7 +74,14 @@ export function DiscoverSearchPage() {
   const emptyProjects =
     showProjectResults && filtered.length === 0;
   const emptyArtists =
-    showArtistResults && matchedArtists.length === 0 && (searching || artistFiltering);
+    showArtistResults &&
+    matchedArtists.length === 0 &&
+    (searching || artistFiltering);
+  const emptyArtistExplore =
+    showArtistResults &&
+    !searching &&
+    !artistFiltering &&
+    matchedArtists.length === 0;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -116,9 +129,24 @@ export function DiscoverSearchPage() {
                 ))}
               </div>
               {exploreProjects.length === 0 ? (
-                <p className="py-10 text-center text-[13px] text-muted">
-                  No open funding yet
-                </p>
+                <div className="flex flex-col items-center py-12 text-center">
+                  <p className="text-[13px] text-muted">No open funding yet</p>
+                  {user?.role === "artist" ? (
+                    <Link
+                      href="/profile"
+                      className="voice mt-4 text-[11px] text-accent"
+                    >
+                      Add a project →
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/register"
+                      className="voice mt-4 text-[11px] text-accent"
+                    >
+                      Create account →
+                    </Link>
+                  )}
+                </div>
               ) : null}
             </section>
           ) : null}
@@ -162,6 +190,26 @@ export function DiscoverSearchPage() {
                   {matchedArtists.map((artist) => (
                     <ArtistResultRow key={artist.id} artist={artist} />
                   ))}
+                </div>
+              ) : null}
+              {emptyArtistExplore ? (
+                <div className="flex flex-col items-center py-12 text-center">
+                  <p className="text-[13px] text-muted">No artists yet</p>
+                  {user?.role === "artist" ? (
+                    <Link
+                      href="/profile"
+                      className="voice mt-4 text-[11px] text-accent"
+                    >
+                      Add a project →
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/register"
+                      className="voice mt-4 text-[11px] text-accent"
+                    >
+                      Create account →
+                    </Link>
+                  )}
                 </div>
               ) : null}
             </section>

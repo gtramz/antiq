@@ -26,7 +26,7 @@ export function PledgesList() {
           <div className="glass-band rounded-surface px-5 py-8 text-center lg:mx-auto lg:max-w-lg">
             <p className="voice text-[12px] text-muted">No pledges yet</p>
             <Link
-              href="/"
+              href="/explore"
               className="voice mt-4 inline-block text-[12px] text-accent"
             >
               Explore projects

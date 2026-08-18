@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { isLocalMediaUrl } from "@/lib/read-local-image";
 import { initialsFromName } from "@/modules/discover/initials";
 import { paletteTint } from "@/modules/shell/tokens";
 
@@ -31,6 +32,7 @@ export function Avatar({
 }: Props) {
   const [failed, setFailed] = useState(false);
   const showImage = Boolean(src) && !failed;
+  const local = isLocalMediaUrl(src);
 
   return (
     <span
@@ -48,14 +50,24 @@ export function Avatar({
       }
     >
       {showImage ? (
-        <Image
-          src={src!}
-          alt=""
-          fill
-          sizes={size === "lg" ? "88px" : "40px"}
-          className="object-cover"
-          onError={() => setFailed(true)}
-        />
+        local ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src!}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={() => setFailed(true)}
+          />
+        ) : (
+          <Image
+            src={src!}
+            alt=""
+            fill
+            sizes={size === "lg" ? "88px" : "40px"}
+            className="object-cover"
+            onError={() => setFailed(true)}
+          />
+        )
       ) : (
         <span className="voice">{initialsFromName(name)}</span>
       )}

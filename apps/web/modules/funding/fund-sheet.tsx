@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { useStore } from "@/modules/data/store";
 import { formatMoney } from "@/modules/shell/tokens";
 import { GlassButton } from "@/modules/shell/ui";
@@ -26,23 +27,69 @@ type Props =
 export function FundSheet(props: Props) {
   const { mode, open, onClose } = props;
   const { getProject, getArtist, fundProject, fundArtist } = useStore();
+  const { user, isAuthenticated } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [amount, setAmount] = useState(500);
   const [custom, setCustom] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [blocked, setBlocked] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open) return;
+    if (!isAuthenticated) {
+      onClose();
+      const next = encodeURIComponent(pathname || "/explore");
+      router.push(`/login?next=${next}`);
+      return;
+    }
+    if (user?.role !== "investor") {
+      setBlocked(true);
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+    setBlocked(false);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [open]);
+  }, [open, isAuthenticated, user?.role, onClose, pathname, router]);
 
-  if (!mounted || !open) return null;
+  if (!mounted || !open || !isAuthenticated) return null;
+
+  if (blocked || user?.role !== "investor") {
+    return createPortal(
+      <div className="fixed inset-0 z-[80] flex items-end justify-center lg:items-center lg:p-6">
+        <button
+          type="button"
+          aria-label="Close"
+          className="absolute inset-0 bg-black/55 animate-fade-in"
+          onClick={onClose}
+        />
+        <div className="relative z-10 w-full max-w-phone animate-sheet-up rounded-t-surface glass-band-strong px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-4 lg:animate-fade-in lg:rounded-surface lg:pb-6 lg:pt-6">
+          <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20 lg:hidden" />
+          <p className="voice text-[11px] text-muted">Funding</p>
+          <h2 className="mt-1 font-display text-[28px] leading-tight text-ink">
+            Investors only
+          </h2>
+          <p className="mt-4 text-[14px] leading-relaxed text-muted">
+            Only investor accounts can fund projects economically. Artists can
+            Support symbolically instead.
+          </p>
+          <div className="mt-6">
+            <GlassButton onClick={onClose}>Close</GlassButton>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   const project =
     mode === "project" ? getProject(props.projectId) : undefined;
@@ -64,6 +111,7 @@ export function FundSheet(props: Props) {
     custom.trim().length > 0 ? Number.parseInt(custom, 10) || 0 : amount;
 
   function confirm() {
+    if (user?.role !== "investor") return;
     const pledge =
       mode === "project"
         ? fundProject(props.projectId, resolved)

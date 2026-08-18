@@ -1,6 +1,6 @@
 /**
  * Full-screen quad + liquid-light nebula fragment shader.
- * Domain-warped FBM, additive brand fields, micro-noise — no discrete particles.
+ * Domain-warped FBM, additive brand fields — no discrete particles or grain.
  * uSeed desyncs phase per card.
  */
 
@@ -167,9 +167,6 @@ void main() {
 
   float luma = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(vec3(luma), col, 1.12);
-
-  float grain = hash(uv * uRes * 0.5 + t * 8.0 + s) - 0.5;
-  col += grain * 0.022;
 
   float scrim = smoothstep(0.85, 0.05, uv.y) * 0.26;
   col *= 1.0 - scrim;

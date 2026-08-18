@@ -61,7 +61,7 @@ export function ReceiptView() {
                 {formatMoney(pledge.amount)}
               </p>
               <p className="voice mt-2 text-[10px] text-tertiary">
-                Mock pledge · no charge
+                Pledge recorded
               </p>
             </>
           ) : (
@@ -71,10 +71,10 @@ export function ReceiptView() {
 
         <div className="mt-6 space-y-2">
           <Link
-            href="/pledges"
+            href="/profile"
             className="voice flex h-[52px] w-full items-center justify-center rounded-full bg-accent text-[13px] text-bg"
           >
-            View my pledges
+            View my profile
           </Link>
           <Link
             href={continueHref}

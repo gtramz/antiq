@@ -83,4 +83,14 @@ body > div:first-child {
   .text-veil {
     text-shadow: 0 1px 5px rgba(0, 0, 0, 0.6);
   }
+
+  /* Account /profile surface — opaque so nebula never shows through chrome. */
+  .surface-profile {
+    background: radial-gradient(
+      120% 80% at 50% -10%,
+      #142848 0%,
+      #060d18 45%,
+      #03060c 100%
+    );
+  }
 }

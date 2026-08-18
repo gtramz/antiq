@@ -1,5 +1,5 @@
-import { DiscoverFeed } from "@/modules/discover/discover-feed";
+import { WelcomeLanding } from "@/modules/auth/welcome-landing";
 
 export default function HomePage() {
-  return <DiscoverFeed />;
+  return <WelcomeLanding />;
 }

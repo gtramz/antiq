@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { AuthProvider } from "@/context/AuthContext";
+import { EnsureArtistBridge } from "@/modules/auth/ensure-artist-bridge";
 import { StoreProvider } from "@/modules/data/store";
 import { AppShell } from "@/modules/shell/app-shell";
 import "./globals.css";
@@ -35,9 +37,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`h-full ${sans.variable} ${mono.variable}`}>
       <body className="h-full overflow-hidden font-sans antialiased">
-        <StoreProvider>
-          <AppShell>{children}</AppShell>
-        </StoreProvider>
+        <AuthProvider>
+          <StoreProvider>
+            <EnsureArtistBridge />
+            <AppShell>{children}</AppShell>
+          </StoreProvider>
+        </AuthProvider>
       </body>
     </html>
   );

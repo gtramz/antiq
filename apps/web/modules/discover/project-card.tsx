@@ -11,7 +11,7 @@ type Props = {
   project: Project;
   artistId: string;
   artistName: string;
-  /** Opens FundSheet for this project. */
+  /** Opens Fund or Support sheet for this project. */
   onBack?: () => void;
   /** Show Funding badge when listed (e.g. artist profile). */
   showFundingBadge?: boolean;
@@ -19,6 +19,8 @@ type Props = {
   variant?: "feed" | "compact";
   /** CTA label when onBack is set (default: Back Project). */
   ctaLabel?: string;
+  /** Public artist support count (Featured signal). */
+  supportCount?: number;
 };
 
 /**
@@ -32,6 +34,7 @@ export function ProjectCard({
   showFundingBadge,
   variant = "compact",
   ctaLabel = "Back Project",
+  supportCount,
 }: Props) {
   const pct = fundingPercent(project);
   const remaining = Math.max(0, project.goal - project.raised);
@@ -102,11 +105,16 @@ export function ProjectCard({
                 {project.format}
               </p>
             </div>
-            {showFundingBadge && project.listedForFunding ? (
-              <span className="voice shrink-0 text-[9px] text-accent">
-                Funding
-              </span>
-            ) : null}
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              {showFundingBadge && project.listedForFunding ? (
+                <span className="voice text-[9px] text-accent">Funding</span>
+              ) : null}
+              {typeof supportCount === "number" && supportCount > 0 ? (
+                <span className="voice rounded-full border border-white/12 bg-white/8 px-2 py-0.5 text-[9px] text-ink">
+                  {supportCount} {supportCount === 1 ? "support" : "supports"}
+                </span>
+              ) : null}
+            </div>
           </div>
 
           {showAudio ? (
